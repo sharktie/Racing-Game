@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Custom Track Racer</title>
+</head>
+<body>
+
+  <!-- ══ LOBBY ════════════════════════════════════════════════════ -->
+  <div id="lobby-phase">
+    <div id="lobby-inner">
+
+      <h1>🏁 Track Racer</h1>
+      <p class="lobby-tagline">Draw your track. Race your friends.</p>
+
+      <!-- Step 1: Enter name -->
+      <div id="lobby-entry">
+        <label for="name-input">YOUR NAME</label>
+        <input id="name-input" maxlength="16" placeholder="Driver" autocomplete="off" />
+        <p id="lobby-error" class="lobby-error"></p>
+        <button class="btn btn-red" id="btn-enter">Join Lobby</button>
+      </div>
+
+      <!-- Step 2: Waiting room -->
+      <div id="lobby-waiting">
+        <p class="waiting-title">Lobby</p>
+        <p class="waiting-sub" id="waiting-host-msg">You're the host — draw the track when ready.</p>
+        <p class="waiting-sub" id="waiting-guest-msg">Waiting for the host to draw a track…</p>
+        <div id="player-list"></div>
+        <p id="player-count">0 / 4 players</p>
+        <button class="btn btn-gold" id="btn-start-draw">✏ Draw Track</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ DRAW PHASE ══════════════════════════════════════════════ -->
+  <div id="draw-phase">
+    <div id="draw-header">
+      <h1>🏁 Custom Track Racer</h1>
+      <span class="subtitle">Draw a loop → Generate → Race</span>
+    </div>
+    <div id="canvas-wrap">
+      <canvas id="drawCanvas"></canvas>
+    </div>
+    <div id="draw-footer">
+      <button class="btn" id="btn-generate">⚙ Generate Track</button>
+      <button class="btn" id="btn-clear">✕ Clear</button>
+      <button class="btn" id="btn-race">▶ Race!</button>
+      <span id="status">Click &amp; drag to draw a closed loop, then Generate Track</span>
+    </div>
+  </div>
+
+  <!-- ══ GAME PHASE ══════════════════════════════════════════════ -->
+  <div id="game-phase"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
