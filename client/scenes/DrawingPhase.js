@@ -274,8 +274,8 @@ export default class DrawingPhase extends Phaser.Scene {
   _race() {
     if (!this._trackData) return;
     this.registry.set('trackData', this._trackData);
-    // If in a multiplayer room, broadcast the track to guests
-    if (net.socket && net.roomCode) {
+    // Broadcast the track to any guests in the lobby
+    if (net.socket && net.playerId) {
       net.sendTrack(this._trackData);
     }
     // Show the Phaser canvas, hide the HTML drawing UI
