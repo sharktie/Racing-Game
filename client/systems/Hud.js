@@ -139,14 +139,15 @@ export default class Hud {
 
   // ── Per-frame update ──────────────────────────────────────────────────────
 
-  update(car, onTrack, offTrackTimer, lapCount, lapStartTime, bestLap) {
+  update(car, onTrack, offTrackTimer, lapCount, lapStartTime, bestLap, totalLaps = 3) {
     const { scene } = this;
 
     this.speedText.setText(`${Math.abs(Math.round(car.speed * 35))} km/h`);
 
     if (lapCount >= 1) {
-      const elapsed = (scene.time.now - lapStartTime) / 1000;
-      this.lapText.setText(`Lap ${lapCount}   ${elapsed.toFixed(1)}s`);
+      const displayLap = Math.min(lapCount, totalLaps);
+      const elapsed    = (scene.time.now - lapStartTime) / 1000;
+      this.lapText.setText(`Lap ${displayLap} / ${totalLaps}   ${elapsed.toFixed(1)}s`);
     }
 
     if (bestLap < Infinity) {

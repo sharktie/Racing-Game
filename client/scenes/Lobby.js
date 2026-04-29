@@ -78,10 +78,10 @@ export default class Lobby extends Phaser.Scene {
       const pill = document.createElement('div');
       pill.className = 'player-pill';
       const isYou  = p.id === net.playerId;
-      const isHost = p.id === (net.isHost && net.playerId ? net.playerId : null);
+      const isHost = p.id === net.hostId;
       pill.innerHTML = `
         <span class="pill-name">${p.name}${isYou ? ' <em>(you)</em>' : ''}</span>
-        ${p.index === 0 ? '<span class="pill-host">HOST</span>' : ''}
+        ${isHost ? '<span class="pill-host">HOST</span>' : ''}
       `;
       el.appendChild(pill);
     });

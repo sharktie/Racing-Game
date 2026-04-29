@@ -17,6 +17,7 @@ class Network {
     this.playerIndex = 0;
     this.playerName  = '';
     this.isHost      = false;
+    this.hostId      = null;
     this.players     = new Map();
     this._listeners  = {};
   }
@@ -40,6 +41,7 @@ class Network {
     this.socket.on('track_data',   ({ data }) => this._emit('track_data', data));
     this.socket.on('lap_completed', (d)       => this._emit('lap_completed', d));
     this.socket.on('host_changed',  ({ hostId }) => {
+      this.hostId = hostId;
       this.isHost = hostId === this.playerId;
       this._emit('host_changed', hostId);
     });
@@ -52,6 +54,7 @@ class Network {
       this.playerIndex = playerIndex;
       this.playerName  = name;
       this.isHost      = isHost;
+      this.hostId      = isHost ? playerId : (players[0]?.id ?? null);
       players.forEach(p => this.players.set(p.id, p));
       this.players.set(playerId, { id: playerId, index: playerIndex, name });
       cb({ ok: true, trackData });
