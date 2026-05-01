@@ -10,6 +10,8 @@
  *  - Laplacian + resample pipeline for clean centerlines
  */
 
+import { _segmentsCross } from '../track/Track.js';
+
 // ── Constants ──────────────────────────────────────────────────────────────
 export const HALF_W_DRAW = 12;  // track half-width in canvas pixels
 export const WORLD_SCALE = 10;  // upscale draw coords → Phaser world
@@ -172,23 +174,6 @@ export function drawBackground(ctx, canvas) {
 // ── Self-intersection detection ───────────────────────────────────────────
 
 /**
- * Strict segment-segment crossing test (shared endpoints do NOT count).
- * Returns true only for proper transversal intersections.
- */
-function segsCross(ax, ay, bx, by, cx, cy, dx, dy) {
-  const cross = (px, py, qx, qy, rx, ry) =>
-    (qx - px) * (ry - py) - (qy - py) * (rx - px);
-
-  const d1 = cross(cx, cy, dx, dy, ax, ay);
-  const d2 = cross(cx, cy, dx, dy, bx, by);
-  const d3 = cross(ax, ay, bx, by, cx, cy);
-  const d4 = cross(ax, ay, bx, by, dx, dy);
-
-  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-         ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
-}
-
-/**
  * Incremental check: does the most recently added segment cross any earlier one?
  * Call this on every mousemove point addition for real-time feedback.
  *
@@ -206,8 +191,8 @@ export function hasNewCrossing(pts) {
 
   // Skip segments i = n-3 (shares point pts[n-2]) — so check up to n-4
   for (let i = 0; i < n - 3; i++) {
-    if (segsCross(ax, ay, bx, by,
-                  pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y)) {
+    if (_segmentsCross(ax, ay, bx, by,
+                       pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y)) {
       return true;
     }
   }
@@ -225,7 +210,7 @@ export function hasCrossing(pts) {
   const n = pts.length;
   for (let i = 0; i < n - 1; i++) {
     for (let j = i + 2; j < n - 1; j++) {
-      if (segsCross(
+      if (_segmentsCross(
         pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y,
         pts[j].x, pts[j].y, pts[j+1].x, pts[j+1].y,
       )) return true;

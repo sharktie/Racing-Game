@@ -81,9 +81,10 @@ export default class Checkpoints {
   get gates() { return this._gates; }
 
   /** True if gate index has been passed this lap */
-  isPassed(idx) { return this._passedSet.has(idx); }
+  isPassed(idx) { return this._passedSet.has(idx); 
     return this._passedSet.size >= NUM_CHECKPOINTS;
   }
+
 
   /**
    * World-space position of the last-passed checkpoint gate centre,
