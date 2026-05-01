@@ -2,6 +2,7 @@ import Preload      from './client/scenes/Preload.js';
 import Lobby        from './client/scenes/Lobby.js';
 import DrawingPhase from './client/scenes/DrawingPhase.js';
 import GameScene    from './client/scenes/GameScene.js';
+import MenuScene from './client/scenes/MenuScene.js';
 
 const game = new Phaser.Game({
   type:            Phaser.AUTO,
@@ -13,5 +14,5 @@ const game = new Phaser.Game({
     default: 'arcade',
     arcade:  { gravity: { y: 0 }, debug: false },
   },
-  scene: [Preload, Lobby, DrawingPhase, GameScene],
+  scene: [Preload, MenuScene, Lobby, DrawingPhase, GameScene],
 });

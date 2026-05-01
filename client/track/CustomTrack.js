@@ -65,33 +65,48 @@ export default class CustomTrack {
    * Row 1: slots 0 (left) and 1 (right) — closest to line
    * Row 2: slots 2 (left) and 3 (right) — further back
    */
-  _buildStartPosition() {
+ _buildStartPosition() {
     const sf      = this._sfGate;
     const hw      = this.halfWidth;
-    const laneOff = hw * 0.45;
-    const rowGap  = hw * 1.1;
 
+    // F1 characteristics
+    const rowGap      = hw * 1.25;     // longitudinal spacing between grid rows
+    const sideOffset  = hw * 0.20;     // subtle left/right stagger
+    const baseDepth   = hw * 1.4;      // how far the first row sits from start line
+
+    // F1 grid alternates left/right each row
     const slots = [
-      // row 0
-      { depth: hw * 1.2,           side:  laneOff },   // slot 0: left,  near
-      { depth: hw * 1.2 + rowGap,  side: -laneOff },   // slot 1: right, near-ish
-      // row 1
-      { depth: hw * 1.2 + rowGap,  side:  laneOff },   // slot 2: left,  far
-      { depth: hw * 1.2 + rowGap*2,side: -laneOff },   // slot 3: right, far
+      // Row 0 (Pole) – slightly left
+      { row: 0, side:  sideOffset },
+
+      // Row 1 – slightly right
+      { row: 1, side: -sideOffset },
+
+      // Row 2 – slightly left
+      { row: 2, side:  sideOffset },
+
+      // Row 3 – slightly right
+      { row: 3, side: -sideOffset },
     ];
 
-    this._gridSlots = slots.map(({ depth, side }) => ({
-      x:     sf.cx - sf.fx * depth + sf.nx * side,
-      y:     sf.cy - sf.fy * depth + sf.ny * side,
-      angle: Math.atan2(sf.fy, sf.fx),
-      // for drawing box outlines
-      cx: sf.cx - sf.fx * depth + sf.nx * side,
-      cy: sf.cy - sf.fy * depth + sf.ny * side,
-      fx: sf.fx, fy: sf.fy, nx: sf.nx, ny: sf.ny,
-    }));
+    this._gridSlots = slots.map(({ row, side }) => {
+        const depth = baseDepth + row * rowGap;
+
+        return {
+            x:     sf.cx - sf.fx * depth + sf.nx * side,
+            y:     sf.cy - sf.fy * depth + sf.ny * side,
+            angle: Math.atan2(sf.fy, sf.fx),
+
+            // box outline helpers
+            cx: sf.cx - sf.fx * depth + sf.nx * side,
+            cy: sf.cy - sf.fy * depth + sf.ny * side,
+            fx: sf.fx, fy: sf.fy,
+            nx: sf.nx, ny: sf.ny,
+        };
+    });
 
     this._gridBoxes = this._gridSlots;
-  }
+}
 
   /** @param {number} index  0-3 player slot */
   getGridPosition(index) {
