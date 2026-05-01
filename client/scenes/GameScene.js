@@ -1,10 +1,12 @@
-import Car         from '../entities/Car.js';
-import GhostCar   from '../entities/GhostCar.js';
-import Input       from '../systems/Input.js';
-import Camera      from '../systems/Camera.js';
-import Hud         from '../systems/Hud.js';
-import CustomTrack from '../track/CustomTrack.js';
-import { net }     from '../systems/Network.js';
+import Car          from '../entities/Car.js';
+import GhostCar    from '../entities/GhostCar.js';
+import Input        from '../systems/Input.js';
+import Camera       from '../systems/Camera.js';
+import Hud          from '../systems/Hud.js';
+import Track        from '../track/Track.js';
+import Checkpoints  from '../track/Checkpoints.js';
+import StartingGrid from '../track/StartingGrid.js';
+import { net }      from '../systems/Network.js';
 
 // How often (ms) we broadcast our position to the server
 const BROADCAST_INTERVAL = 50; // ~20Hz
@@ -22,13 +24,21 @@ export default class GameScene extends Phaser.Scene {
     this.inputSystem = new Input(this);
 
     // Track + world layer
-    this.track = new CustomTrack(trackData);
+    this.track = new Track(trackData);
     const layer = this.add.graphics();
-    this.track.draw(layer, this);
+    this.track.draw(layer);
 
-    // Local car — spawned at the correct grid box for this player
+    // Checkpoints (drawn on same layer)
+    this.checkpoints = new Checkpoints(trackData.centerline, trackData.halfWidth);
+    this.checkpoints.draw(layer);
+
+    // Starting grid (drawn on same layer, slot numbers as scene text)
+    this.grid = new StartingGrid(this.track.sfGate, trackData.halfWidth);
+    this.grid.draw(layer, this);
+
+    // Local car — spawned at the correct grid slot for this player
     const gridSlot = net.playerIndex ?? 0;
-    const startPos = this.track.getGridPosition(gridSlot);
+    const startPos = this.grid.getPosition(gridSlot);
 
     this.car = new Car(this, startPos.x, startPos.y, startPos.angle);
 
@@ -36,16 +46,15 @@ export default class GameScene extends Phaser.Scene {
     this.cameraSystem = new Camera(this, this.car, trackData.worldW, trackData.worldH);
 
     // Race state
-    this.driving          = false;
-    this.offTrackTimer    = 0;
-    this.lapCount         = 1;
-    this.lapStartTime     = 0;
-    this.bestLap          = Infinity;
-    this.raceStartTime    = 0;
-    this.raceFinished     = false;
-    this.justCrossed      = false;
-    this.checkpointPassed = false;
-    this.justHitCP        = false;
+    this.driving        = false;
+    this.offTrackTimer  = 0;
+    this.lapCount       = 1;
+    this.lapStartTime   = 0;
+    this.bestLap        = Infinity;
+    this.raceStartTime  = 0;
+    this.raceFinished   = false;
+    this.justCrossed    = false;
+    this._justHitCPs    = new Set(); // cooldown set per checkpoint index
 
     // Multiplayer — ghost cars keyed by socket id
     this._ghosts       = new Map();
@@ -110,7 +119,7 @@ export default class GameScene extends Phaser.Scene {
       net.sendUpdate({
         x: this.car.x, y: this.car.y,
         angle: this.car.angle, speed: this.car.speed,
-        lap: this.lapCount, checkpointPassed: this.checkpointPassed,
+        lap: this.lapCount,
       });
     }
 
@@ -120,39 +129,42 @@ export default class GameScene extends Phaser.Scene {
     const onTrack = this.track.isOnTrack(this.car.x, this.car.y);
     this.car.update(input, delta, onTrack);
 
-    // Off-track reset
+    // Off-track reset — respawn at last passed checkpoint or grid slot
     if (!onTrack) {
       this.offTrackTimer += delta / 1000;
       if (this.offTrackTimer >= 5.0) {
-        const pos = this.track.getGridPosition(net.playerIndex ?? 0);
+        const cpPos = this.checkpoints.lastPassedPosition();
+        const pos   = cpPos ?? this.grid.getPosition(net.playerIndex ?? 0);
         this.car.reset(pos.x, pos.y, pos.angle);
         this.offTrackTimer = 0;
-        this.lapStartTime  = this.time.now;
       }
     } else {
       this.offTrackTimer = 0;
     }
 
-    // Checkpoint
-    const hitCP = this.track.crossedCheckpoint(
+    // Checkpoints — update returns index of gate crossed, or -1
+    const cpIdx = this.checkpoints.update(
       this.car.prevX, this.car.prevY, this.car.x, this.car.y,
     );
-    if (hitCP && !this.justHitCP) {
-      this.justHitCP        = true;
-      this.checkpointPassed = true;
-      this._flashMessage('✓  CHECKPOINT', '#88aaff');
-      this.time.delayedCall(1200, () => { this.justHitCP = false; });
+    if (cpIdx >= 0 && !this._justHitCPs.has(cpIdx)) {
+      this._justHitCPs.add(cpIdx);
+      const remaining = 7 - this.checkpoints._passedSet.size;
+      this._flashMessage(
+        remaining > 0 ? `✓  CHECKPOINT  (${remaining} left)` : '✓  ALL CHECKPOINTS',
+        '#88aaff',
+      );
+      this.time.delayedCall(1500, () => this._justHitCPs.delete(cpIdx));
     }
 
-    // S/F line
+    // S/F line — only counts if all checkpoints passed
     const crossed = this.track.crossedStartFinish(
       this.car.prevX, this.car.prevY, this.car.x, this.car.y,
     );
     if (crossed && !this.justCrossed) {
       this.justCrossed = true;
-      if (this.checkpointPassed) {
+      if (this.checkpoints.allPassed()) {
         this._completeLap();
-        this.checkpointPassed = false;
+        this.checkpoints.resetLap();
       }
       this.time.delayedCall(1500, () => { this.justCrossed = false; });
     }
