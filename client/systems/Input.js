@@ -1,24 +1,44 @@
 /**
  * Input system
  *
- * Reads WASD and arrow keys and returns a normalised input object.
- * Add gamepad or touch-joystick support here in the future.
+ * Reads key bindings from Settings.js so they can be rebound at runtime.
+ * Call rebuild() after settings change (or just create a new Input instance).
  */
+import { settings } from './Settings.js';
+
 export default class Input {
   constructor(scene) {
-    this.keys = scene.input.keyboard.addKeys({
-      up:       Phaser.Input.Keyboard.KeyCodes.W,
-      down:     Phaser.Input.Keyboard.KeyCodes.S,
-      left:     Phaser.Input.Keyboard.KeyCodes.A,
-      right:    Phaser.Input.Keyboard.KeyCodes.D,
-      upArr:    Phaser.Input.Keyboard.KeyCodes.UP,
-      downArr:  Phaser.Input.Keyboard.KeyCodes.DOWN,
-      leftArr:  Phaser.Input.Keyboard.KeyCodes.LEFT,
-      rightArr: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+    this._scene = scene;
+    this.rebuild();
+  }
+
+  /** Re-registers keys from current settings — call after rebinding. */
+  rebuild() {
+    // Remove old keys if they exist
+    if (this.keys) {
+      Object.values(this.keys).forEach(k => {
+        try { this._scene.input.keyboard.removeKey(k); } catch (_) {}
+      });
+    }
+
+    const KC = Phaser.Input.Keyboard.KeyCodes;
+    const resolve = name => KC[name] ?? KC[name.toUpperCase()] ?? KC.W;
+
+    this.keys = this._scene.input.keyboard.addKeys({
+      up:       resolve(settings.up),
+      down:     resolve(settings.down),
+      left:     resolve(settings.left),
+      right:    resolve(settings.right),
+      // Always add arrow keys as secondary (non-rebindable)
+      upArr:    KC.UP,
+      downArr:  KC.DOWN,
+      leftArr:  KC.LEFT,
+      rightArr: KC.RIGHT,
+      reset:    KC.R,
     });
   }
 
-  /** @returns {{ up:boolean, down:boolean, left:boolean, right:boolean }} */
+  /** @returns {{ up, down, left, right, reset: boolean }} */
   get() {
     const k = this.keys;
     return {
@@ -26,6 +46,7 @@ export default class Input {
       down:  k.down.isDown  || k.downArr.isDown,
       left:  k.left.isDown  || k.leftArr.isDown,
       right: k.right.isDown || k.rightArr.isDown,
+      reset: Phaser.Input.Keyboard.JustDown(k.reset),
     };
   }
 }

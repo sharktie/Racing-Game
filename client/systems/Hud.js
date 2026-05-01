@@ -12,10 +12,11 @@
  * registered via addToHudCam() so the main cam ignores them too.
  */
 export default class Hud {
-  constructor(scene, trackData, onRedraw) {
-    this.scene      = scene;
-    this.trackData  = trackData;
-    this._hudObjs   = [];   // everything the HUD camera should see
+  constructor(scene, trackData, onRedraw, checkpoints = null) {
+    this.scene        = scene;
+    this.trackData    = trackData;
+    this._hudObjs     = [];
+    this._checkpoints = checkpoints;
 
     this._build(onRedraw);
     this._buildMinimap();
@@ -46,7 +47,7 @@ export default class Hud {
       color: '#ff4444', stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5, 1).setDepth(20).setVisible(false);
 
-    const hint = scene.add.text(W / 2, H - 10, 'WASD / Arrow Keys to drive', {
+    const hint = scene.add.text(W / 2, H - 10, 'WASD / Arrows to drive  ·  R to reset to last checkpoint', {
       fontFamily: "'Barlow Condensed', Arial", fontSize: '13px', color: '#555555',
     }).setOrigin(0.5, 1).setDepth(20);
 
@@ -87,11 +88,28 @@ export default class Hud {
 
     const sfPt = td.centerline[3];
     g.fillStyle(0xffffff, 1);
-    g.fillCircle(mX + sfPt.x * sx, mY + sfPt.y * sy, 3);
+    g.fillRect(mX + sfPt.x * sx - 2, mY + sfPt.y * sy - 3, 4, 6);
 
-    const cpPt = td.centerline[Math.floor(td.centerline.length / 2)];
-    g.fillStyle(0x88aaff, 1);
-    g.fillCircle(mX + cpPt.x * sx, mY + cpPt.y * sy, 3);
+    // Checkpoint lines — one thin line per gate, redrawn each frame to show pass state
+    this._mmCpLines = [];
+    if (this._checkpoints) {
+      this._checkpoints.gates.forEach(gate => {
+        const lg = scene.add.graphics().setDepth(21);
+        this._mmCpLines.push({
+          gfx: lg,
+          index: gate.index,
+          x1: mX + gate.x1 * sx, y1: mY + gate.y1 * sy,
+          x2: mX + gate.x2 * sx, y2: mY + gate.y2 * sy,
+        });
+        this._hudObjs.push(lg);
+      });
+      // Initial draw
+      this._drawCpLines();
+    } else {
+      const cpPt = td.centerline[Math.floor(td.centerline.length / 2)];
+      g.fillStyle(0x88aaff, 1);
+      g.fillCircle(mX + cpPt.x * sx, mY + cpPt.y * sy, 3);
+    }
 
     const label = scene.add.text(mX + 4, mY + 4, 'MAP', {
       fontFamily: "'Barlow Condensed', Arial", fontSize: '11px', color: '#666666',
@@ -168,8 +186,7 @@ export default class Hud {
     }
 
     if (!onTrack && offTrackTimer > 0.3) {
-      const remaining = Math.max(0, 5.0 - offTrackTimer).toFixed(1);
-      this.warningText.setText(`OFF TRACK — reset in ${remaining}s`);
+      this.warningText.setText('OFF TRACK  —  Press R to reset');
       this.warningText.setVisible(true);
     } else {
       this.warningText.setVisible(false);
@@ -179,5 +196,19 @@ export default class Hud {
       this._mmX + car.x * this._mmSX,
       this._mmY + car.y * this._mmSY,
     );
+
+    if (this._mmCpLines && this._checkpoints) this._drawCpLines();
+  }
+
+  _drawCpLines() {
+    this._mmCpLines.forEach(({ gfx, index, x1, y1, x2, y2 }) => {
+      const passed = this._checkpoints.isPassed(index);
+      gfx.clear();
+      gfx.lineStyle(1.5, passed ? 0x44dd66 : 0x4466cc, passed ? 1 : 0.75);
+      gfx.beginPath();
+      gfx.moveTo(x1, y1);
+      gfx.lineTo(x2, y2);
+      gfx.strokePath();
+    });
   }
 }

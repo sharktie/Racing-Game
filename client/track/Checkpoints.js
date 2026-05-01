@@ -77,8 +77,11 @@ export default class Checkpoints {
     this._lastIdx = -1;
   }
 
-  /** True if every checkpoint has been hit at least once this lap. */
-  allPassed() {
+  /** Read-only access to gate geometry for minimap etc. */
+  get gates() { return this._gates; }
+
+  /** True if gate index has been passed this lap */
+  isPassed(idx) { return this._passedSet.has(idx); }
     return this._passedSet.size >= NUM_CHECKPOINTS;
   }
 

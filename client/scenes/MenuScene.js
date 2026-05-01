@@ -95,6 +95,25 @@ export default class MenuScene extends Phaser.Scene {
       letterSpacing: 8,
     }).setOrigin(0.5).setAlpha(0);
 
+    // Settings button (below Play)
+    const settBtnY = btnY + btnH + 16;
+    this._settBg = this.add.graphics().setAlpha(0);
+    this._drawSettBtn(this._settBg, W / 2, settBtnY, btnW, 40, false);
+
+    this._settText = this.add.text(W / 2, settBtnY, '⚙  SETTINGS', {
+      fontFamily: "'Barlow Condensed', sans-serif",
+      fontSize:   '20px',
+      fontStyle:  'bold',
+      color:      '#aaaaaa',
+      letterSpacing: 4,
+    }).setOrigin(0.5).setAlpha(0);
+
+    const settZone = this.add.zone(W / 2, settBtnY, btnW + 20, 60)
+      .setInteractive({ useHandCursor: true });
+    settZone.on('pointerover',  () => { this._drawSettBtn(this._settBg, W / 2, settBtnY, btnW, 40, true);  this._settText.setColor('#ffffff'); });
+    settZone.on('pointerout',   () => { this._drawSettBtn(this._settBg, W / 2, settBtnY, btnW, 40, false); this._settText.setColor('#aaaaaa'); });
+    settZone.on('pointerdown',  () => this._openSettings());
+
     // Hit zone
     const hitZone = this.add.zone(W / 2, btnY, btnW + 20, btnH + 20)
       .setInteractive({ useHandCursor: true });
@@ -143,6 +162,12 @@ export default class MenuScene extends Phaser.Scene {
       targets: [this._btnBg, this._btnText],
       alpha: 1,
       duration: 400, ease: 'Cubic.Out', delay: delay + 520,
+    });
+
+    this.tweens.add({
+      targets: [this._settBg, this._settText],
+      alpha: 1,
+      duration: 400, ease: 'Cubic.Out', delay: delay + 640,
     });
 
     // Pulse on play button
@@ -322,6 +347,24 @@ export default class MenuScene extends Phaser.Scene {
       g.lineStyle(2, 0xff8888, 0.6);
       g.strokeRoundedRect(x - w / 2, y - h / 2, w, h, 6);
     }
+  }
+
+  // ── Open settings ─────────────────────────────────────────────────────────
+  _openSettings() {
+    if (this._transitioning) return;
+    this._transitioning = true;
+    this.cameras.main.fadeOut(250, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('SettingsScene');
+    });
+  }
+
+  _drawSettBtn(g, x, y, w, h, hover) {
+    g.clear();
+    g.fillStyle(hover ? 0x252530 : 0x181820, 1);
+    g.fillRoundedRect(x - w / 2, y - h / 2, w, h, 5);
+    g.lineStyle(1, hover ? 0x555566 : 0x2a2a35, 1);
+    g.strokeRoundedRect(x - w / 2, y - h / 2, w, h, 5);
   }
 
   // ── Transition to Lobby ───────────────────────────────────────────────────

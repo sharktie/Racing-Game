@@ -1,8 +1,10 @@
-import Preload      from './client/scenes/Preload.js';
-import MenuScene    from './client/scenes/MenuScene.js';
-import Lobby        from './client/scenes/Lobby.js';
-import DrawingPhase from './client/scenes/DrawingPhase.js';
-import GameScene    from './client/scenes/GameScene.js';
+import Preload       from './client/scenes/Preload.js';
+import MenuScene     from './client/scenes/MenuScene.js';
+import SettingsScene from './client/scenes/SettingsScene.js';
+import Lobby         from './client/scenes/Lobby.js';
+import DrawingPhase  from './client/scenes/DrawingPhase.js';
+import GameScene     from './client/scenes/GameScene.js';
+import Leaderboard   from './client/scenes/Leaderboard.js';
 
 const game = new Phaser.Game({
   type:            Phaser.AUTO,
@@ -14,5 +16,5 @@ const game = new Phaser.Game({
     default: 'arcade',
     arcade:  { gravity: { y: 0 }, debug: false },
   },
-  scene: [Preload, MenuScene, Lobby, DrawingPhase, GameScene],
+  scene: [Preload, MenuScene, SettingsScene, Lobby, DrawingPhase, GameScene, Leaderboard],
 });

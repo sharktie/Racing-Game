@@ -54,7 +54,8 @@ export default class GameScene extends Phaser.Scene {
     this.raceStartTime  = 0;
     this.raceFinished   = false;
     this.justCrossed    = false;
-    this._justHitCPs    = new Set(); // cooldown set per checkpoint index
+    this._justHitCPs    = new Set();
+    this._lapTimes      = [];   // completed lap times in seconds
 
     // Multiplayer — ghost cars keyed by socket id
     this._ghosts       = new Map();
@@ -74,7 +75,7 @@ export default class GameScene extends Phaser.Scene {
       document.getElementById('draw-phase').style.display = 'flex';
       document.getElementById('game-phase').style.display = 'none';
       this.scene.start('DrawingPhase');
-    });
+    }, this.checkpoints);
 
     // Tell HUD camera to also ignore ghost car sprites
     // (they'll be added to worldObjs naturally since created before _setupCameras
@@ -129,15 +130,17 @@ export default class GameScene extends Phaser.Scene {
     const onTrack = this.track.isOnTrack(this.car.x, this.car.y);
     this.car.update(input, delta, onTrack);
 
-    // Off-track reset — respawn at last passed checkpoint or grid slot
+    // R key — instant reset to last checkpoint (or grid slot)
+    if (input.reset) {
+      const cpPos = this.checkpoints.lastPassedPosition();
+      const pos   = cpPos ?? this.grid.getPosition(net.playerIndex ?? 0);
+      this.car.reset(pos.x, pos.y, pos.angle);
+      this.offTrackTimer = 0;
+    }
+
+    // Off-track warning (no auto-reset — player uses R)
     if (!onTrack) {
       this.offTrackTimer += delta / 1000;
-      if (this.offTrackTimer >= 5.0) {
-        const cpPos = this.checkpoints.lastPassedPosition();
-        const pos   = cpPos ?? this.grid.getPosition(net.playerIndex ?? 0);
-        this.car.reset(pos.x, pos.y, pos.angle);
-        this.offTrackTimer = 0;
-      }
     } else {
       this.offTrackTimer = 0;
     }
@@ -177,6 +180,7 @@ export default class GameScene extends Phaser.Scene {
   _completeLap() {
     const elapsed = (this.time.now - this.lapStartTime) / 1000;
     this.lapStartTime = this.time.now;
+    this._lapTimes.push(elapsed);
 
     if (elapsed < this.bestLap) {
       this.bestLap = elapsed;
@@ -195,8 +199,25 @@ export default class GameScene extends Phaser.Scene {
       this.driving      = false;
       this.raceFinished = true;
       const totalTime   = (this.time.now - this.raceStartTime) / 1000;
-      this.time.delayedCall(600, () => this._showRaceFinished(totalTime));
+      this.time.delayedCall(800, () => this._goToLeaderboard(totalTime));
     }
+  }
+
+  _goToLeaderboard(totalTime) {
+    net.off('players_update', this._onPlayersUpdate);
+    net.off('player_left',    this._onPlayerLeft);
+
+    this.registry.set('raceResult', {
+      playerName: net.playerName || 'Driver',
+      totalTime,
+      bestLap:   this.bestLap,
+      lapTimes:  this._lapTimes,
+    });
+
+    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('Leaderboard');
+    });
   }
 
   // ── Flash message ─────────────────────────────────────────────────────────
@@ -224,64 +245,6 @@ export default class GameScene extends Phaser.Scene {
       ease:       'Power2',
       onComplete: () => msg.destroy(),
     });
-  }
-
-  // ── Race finished overlay ─────────────────────────────────────────────────
-
-  _showRaceFinished(totalTime) {
-    const W = this.scale.width;
-    const H = this.scale.height;
-
-    const fmt = t => {
-      const m = Math.floor(t / 60);
-      const s = (t % 60).toFixed(2).padStart(5, '0');
-      return m > 0 ? `${m}:${s}` : `${s}s`;
-    };
-
-    // Dark panel
-    const panel = this.add.graphics().setDepth(40);
-    panel.fillStyle(0x000000, 0.78);
-    panel.fillRoundedRect(W / 2 - 200, H / 2 - 130, 400, 260, 16);
-    panel.lineStyle(3, 0xf5c518, 1);
-    panel.strokeRoundedRect(W / 2 - 200, H / 2 - 130, 400, 260, 16);
-
-    const title = this.add.text(W / 2, H / 2 - 90, '🏁  RACE FINISHED', {
-      fontFamily: "'Rajdhani', Arial", fontSize: '34px', fontStyle: 'bold',
-      color: '#f5c518', stroke: '#000', strokeThickness: 5,
-    }).setOrigin(0.5).setDepth(41);
-
-    const timeLabel = this.add.text(W / 2, H / 2 - 30, `Total: ${fmt(totalTime)}`, {
-      fontFamily: "'Barlow Condensed', Arial", fontSize: '26px',
-      color: '#ffffff', stroke: '#000', strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(41);
-
-    const bestLabel = this.add.text(W / 2, H / 2 + 12,
-      this.bestLap < Infinity ? `Best Lap: ${fmt(this.bestLap)}` : '', {
-      fontFamily: "'Barlow Condensed', Arial", fontSize: '20px',
-      color: '#88aaff', stroke: '#000', strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(41);
-
-    // Redraw button
-    const btnBg = this.add.graphics().setDepth(41);
-    btnBg.fillStyle(0xe03333, 1);
-    btnBg.fillRoundedRect(W / 2 - 110, H / 2 + 55, 220, 46, 8);
-
-    const btn = this.add.text(W / 2, H / 2 + 78, '✏  DRAW NEW TRACK', {
-      fontFamily: "'Rajdhani', Arial", fontSize: '19px', fontStyle: 'bold',
-      color: '#ffffff', letterSpacing: 2,
-    }).setOrigin(0.5).setDepth(42).setInteractive({ useHandCursor: true });
-
-    btn.on('pointerover',  () => btnBg.clear().fillStyle(0xff4444, 1).fillRoundedRect(W / 2 - 110, H / 2 + 55, 220, 46, 8));
-    btn.on('pointerout',   () => btnBg.clear().fillStyle(0xe03333, 1).fillRoundedRect(W / 2 - 110, H / 2 + 55, 220, 46, 8));
-    btn.on('pointerdown',  () => {
-      net.off('players_update', this._onPlayersUpdate);
-      net.off('player_left',    this._onPlayerLeft);
-      document.getElementById('draw-phase').style.display = 'flex';
-      document.getElementById('game-phase').style.display = 'none';
-      this.scene.start('DrawingPhase');
-    });
-
-    [panel, title, timeLabel, bestLabel, btnBg, btn].forEach(o => this.hud.addToHudCam(o));
   }
 
   // ── F1 countdown ──────────────────────────────────────────────────────────
