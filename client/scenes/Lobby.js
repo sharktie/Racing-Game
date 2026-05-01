@@ -347,54 +347,58 @@ export default class Lobby extends Phaser.Scene {
   // ── Guest live drawing preview ─────────────────────────────────────────
 
   _onDrawStroke(points, blocked) {
-    if (net.isHost) return;  // host never shows preview (they draw on the real canvas)
+    if (net.isHost) return;
 
     const overlay = document.getElementById('draw-preview-overlay');
     const cvs     = document.getElementById('draw-preview-canvas');
     const wrap    = document.getElementById('draw-preview-canvas-wrap');
 
-    // Show the overlay and hide the lobby panel
     overlay.style.display = 'flex';
     document.getElementById('lobby-phase').style.display = 'none';
 
-    // Size the canvas to fill the wrap area, maintaining aspect ratio
-    const W = wrap.clientWidth  - 4;
-    const H = wrap.clientHeight - 4;
-    if (cvs.width !== W || cvs.height !== H) {
-      cvs.width  = W;
-      cvs.height = H;
-    }
+    // Size canvas to fill wrap — collapse first to avoid inflating wrap height
+    cvs.width  = 0;
+    cvs.height = 0;
+    const W = Math.max(wrap.clientWidth  - 24, 100);
+    const H = Math.max(wrap.clientHeight - 24, 100);
+    cvs.width  = W;
+    cvs.height = H;
 
     const ctx = cvs.getContext('2d');
 
-    // Find bounding box of the points to fit them to canvas
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    // Dark background + subtle grid
+    ctx.fillStyle = '#0d0d0f';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    for (let gx = 0; gx < W; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke(); }
+    for (let gy = 0; gy < H; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
+
+    if (!points || points.length < 2) return;
+
+    // Compute bounding box of the stroke
+    let minX = points[0].x, minY = points[0].y;
+    let maxX = points[0].x, maxY = points[0].y;
     for (const p of points) {
       if (p.x < minX) minX = p.x;
       if (p.y < minY) minY = p.y;
       if (p.x > maxX) maxX = p.x;
       if (p.y > maxY) maxY = p.y;
     }
+
     const pw = maxX - minX || 1;
     const ph = maxY - minY || 1;
-    const scale = Math.min(W / pw, H / ph) * 0.85;
-    const ox = (W - pw * scale) / 2 - minX * scale;
-    const oy = (H - ph * scale) / 2 - minY * scale;
 
-    // Clear to dark background
-    ctx.fillStyle = '#0d0d0f';
-    ctx.fillRect(0, 0, W, H);
+    // Fit the stroke into 85% of the canvas, centred
+    const margin = 0.85;
+    const scale  = Math.min((W * margin) / pw, (H * margin) / ph);
+    // Offset so the bounding box centre maps to the canvas centre
+    const ox = W / 2 - (minX + pw / 2) * scale;
+    const oy = H / 2 - (minY + ph / 2) * scale;
 
-    // Draw a subtle grid
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 1;
-    for (let gx = 0; gx < W; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke(); }
-    for (let gy = 0; gy < H; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
-
-    if (points.length < 2) return;
-
-    ctx.lineWidth   = 3;
-    ctx.strokeStyle = blocked ? 'rgba(255,80,80,0.85)' : 'rgba(255,255,255,0.65)';
+    // Draw stroke
+    ctx.lineWidth   = Math.max(2, 3 * scale);
+    ctx.strokeStyle = blocked ? 'rgba(255,80,80,0.85)' : 'rgba(255,255,255,0.7)';
     ctx.lineJoin    = 'round';
     ctx.lineCap     = 'round';
     ctx.beginPath();
@@ -404,10 +408,10 @@ export default class Lobby extends Phaser.Scene {
     }
     ctx.stroke();
 
-    // Start dot
+    // Gold start dot
     ctx.fillStyle = '#f5c518';
     ctx.beginPath();
-    ctx.arc(points[0].x * scale + ox, points[0].y * scale + oy, 5, 0, Math.PI * 2);
+    ctx.arc(points[0].x * scale + ox, points[0].y * scale + oy, Math.max(4, 5 * scale), 0, Math.PI * 2);
     ctx.fill();
   }
 

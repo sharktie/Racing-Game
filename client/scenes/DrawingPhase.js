@@ -72,6 +72,10 @@ export default class DrawingPhase extends Phaser.Scene {
   }
 
   _sizeCanvas() {
+    // Collapse the canvas to 0 before measuring so it doesn't inflate
+    // the wrap's scrollHeight and push subsequent measurements larger each time
+    this.canvas.width  = 0;
+    this.canvas.height = 0;
     const W = Math.floor(this.wrap.clientWidth  - 24);
     const H = Math.floor(this.wrap.clientHeight - 24);
     this.canvas.width  = W;
