@@ -137,6 +137,19 @@ export default class Hud {
     // HUD cam should render them (default — no ignore needed)
   }
 
+  /**
+   * Register one or more objects as world-space objects (NOT HUD overlays).
+   * Call this for anything created after _setupCameras that should scroll with
+   * the world — e.g. ghost cars spawned mid-game.
+   * @param {Phaser.GameObjects.GameObject|Array} objs
+   */
+  addToWorldCam(objs) {
+    const arr = Array.isArray(objs) ? objs : [objs];
+    // HUD cam must ignore them so they don't appear as frozen overlays
+    this._hudCam.ignore(arr);
+    // Main cam already sees them by default (no action needed)
+  }
+
   // ── Per-frame update ──────────────────────────────────────────────────────
 
   update(car, onTrack, offTrackTimer, lapCount, lapStartTime, bestLap, totalLaps = 3) {

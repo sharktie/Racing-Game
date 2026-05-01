@@ -13,8 +13,9 @@ export default class GhostCar {
   /**
    * @param {Phaser.Scene} scene
    * @param {number} playerIndex  0-3
+   * @param {string} playerName   Display name from server
    */
-  constructor(scene, playerIndex) {
+  constructor(scene, playerIndex, playerName) {
     this.scene       = scene;
     this.playerIndex = playerIndex;
     this.colour      = PLAYER_COLOURS[playerIndex] || 0xaaaaaa;
@@ -24,18 +25,23 @@ export default class GhostCar {
     this.sprite.setDepth(9);
     this.sprite.setAlpha(0.82);
 
-    // Name label above car
-    this.label = scene.add.text(0, -32, PLAYER_NAMES[playerIndex] || `P${playerIndex+1}`, {
-      fontFamily: "'Barlow Condensed', Arial",
-      fontSize:   '16px',
-      color:      '#ffffff',
-      stroke:     '#000000',
-      strokeThickness: 3,
-    }).setOrigin(0.5, 1).setDepth(10);
+    // Name label — rendered in world space, positioned above the car each frame
+    const label = playerName || PLAYER_NAMES[playerIndex] || `P${playerIndex + 1}`;
+    this.label = scene.add.text(0, 0, label, {
+      fontFamily:      "'Barlow Condensed', Arial",
+      fontSize:        '15px',
+      fontStyle:       'bold',
+      color:           '#ffffff',
+      stroke:          '#000000',
+      strokeThickness: 4,
+      backgroundColor: '#00000055',
+      padding:         { x: 4, y: 2 },
+    }).setOrigin(0.5, 1).setDepth(11);
 
     // Interpolation targets
     this.tx = 0; this.ty = 0; this.ta = 0;
     this.x  = 0; this.y  = 0; this.angle = 0;
+    this._snapped = false;  // snap to first received position instantly
   }
 
   _drawCar() {
@@ -76,11 +82,18 @@ export default class GhostCar {
     this.tx = state.x;
     this.ty = state.y;
     this.ta = state.angle;
+    // Snap immediately on first update so ghost doesn't slide in from (0,0)
+    if (!this._snapped) {
+      this.x     = state.x;
+      this.y     = state.y;
+      this.angle = state.angle;
+      this._snapped = true;
+    }
   }
 
   /** Call every frame */
   update() {
-    const LERP = 0.22;
+    const LERP = 0.32;  // faster lerp = snappier tracking
     this.x     += (this.tx - this.x)     * LERP;
     this.y     += (this.ty - this.y)     * LERP;
 
@@ -95,7 +108,7 @@ export default class GhostCar {
     this.sprite.rotation = this.angle;
 
     this.label.x = this.x;
-    this.label.y = this.y - 24;
+    this.label.y = this.y - 30;  // 30px above centre — clears the car roof and wheels
   }
 
   destroy() {

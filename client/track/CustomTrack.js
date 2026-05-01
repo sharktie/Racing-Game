@@ -65,48 +65,33 @@ export default class CustomTrack {
    * Row 1: slots 0 (left) and 1 (right) — closest to line
    * Row 2: slots 2 (left) and 3 (right) — further back
    */
- _buildStartPosition() {
+  _buildStartPosition() {
     const sf      = this._sfGate;
     const hw      = this.halfWidth;
+    const laneOff = hw * 0.45;
+    const rowGap  = hw * 1.1;
 
-    // F1 characteristics
-    const rowGap      = hw * 1.25;     // longitudinal spacing between grid rows
-    const sideOffset  = hw * 0.20;     // subtle left/right stagger
-    const baseDepth   = hw * 1.4;      // how far the first row sits from start line
-
-    // F1 grid alternates left/right each row
     const slots = [
-      // Row 0 (Pole) – slightly left
-      { row: 0, side:  sideOffset },
-
-      // Row 1 – slightly right
-      { row: 1, side: -sideOffset },
-
-      // Row 2 – slightly left
-      { row: 2, side:  sideOffset },
-
-      // Row 3 – slightly right
-      { row: 3, side: -sideOffset },
+      // row 0
+      { depth: hw * 1.2,           side:  laneOff },   // slot 0: left,  near
+      { depth: hw * 1.2 + rowGap,  side: -laneOff },   // slot 1: right, near-ish
+      // row 1
+      { depth: hw * 1.2 + rowGap,  side:  laneOff },   // slot 2: left,  far
+      { depth: hw * 1.2 + rowGap*2,side: -laneOff },   // slot 3: right, far
     ];
 
-    this._gridSlots = slots.map(({ row, side }) => {
-        const depth = baseDepth + row * rowGap;
-
-        return {
-            x:     sf.cx - sf.fx * depth + sf.nx * side,
-            y:     sf.cy - sf.fy * depth + sf.ny * side,
-            angle: Math.atan2(sf.fy, sf.fx),
-
-            // box outline helpers
-            cx: sf.cx - sf.fx * depth + sf.nx * side,
-            cy: sf.cy - sf.fy * depth + sf.ny * side,
-            fx: sf.fx, fy: sf.fy,
-            nx: sf.nx, ny: sf.ny,
-        };
-    });
+    this._gridSlots = slots.map(({ depth, side }) => ({
+      x:     sf.cx - sf.fx * depth + sf.nx * side,
+      y:     sf.cy - sf.fy * depth + sf.ny * side,
+      angle: Math.atan2(sf.fy, sf.fx),
+      // for drawing box outlines
+      cx: sf.cx - sf.fx * depth + sf.nx * side,
+      cy: sf.cy - sf.fy * depth + sf.ny * side,
+      fx: sf.fx, fy: sf.fy, nx: sf.nx, ny: sf.ny,
+    }));
 
     this._gridBoxes = this._gridSlots;
-}
+  }
 
   /** @param {number} index  0-3 player slot */
   getGridPosition(index) {
@@ -163,42 +148,58 @@ export default class CustomTrack {
   }
 
   /**
-   * Draw two F1-style starting grid boxes behind the S/F line.
-   * Each box is a painted rectangle on the tarmac.
+   * Draw F1-style starting grid markers — open corner brackets only,
+   * matching the real-world painted tarmac style (no filled box).
    */
   _drawGridBoxes(g, scene) {
-    const bw = this.halfWidth * 0.55;  // box half-width (across track)
-    const bl = this.halfWidth * 0.9;   // box half-length (along track)
+    const bw = this.halfWidth * 0.55;  // half-width across track
+    const bl = this.halfWidth * 0.9;   // half-length along track
+    const armF = bl * 0.38;            // how far each corner arm extends (forward/back)
+    const armN = bw * 0.38;            // how far each corner arm extends (sideways)
+    const lw   = 3.5;                  // line width
 
     this._gridBoxes.forEach((box, idx) => {
       const { cx, cy, fx, fy, nx, ny } = box;
 
-      // Four corners of the box
-      const corners = [
-        { x: cx + fx * bl + nx * bw, y: cy + fy * bl + ny * bw },
-        { x: cx + fx * bl - nx * bw, y: cy + fy * bl - ny * bw },
-        { x: cx - fx * bl - nx * bw, y: cy - fy * bl - ny * bw },
-        { x: cx - fx * bl + nx * bw, y: cy - fy * bl + ny * bw },
-      ];
+      // Four corners
+      const TL = { x: cx + fx * bl + nx * bw, y: cy + fy * bl + ny * bw };
+      const TR = { x: cx + fx * bl - nx * bw, y: cy + fy * bl - ny * bw };
+      const BL = { x: cx - fx * bl + nx * bw, y: cy - fy * bl + ny * bw };
+      const BR = { x: cx - fx * bl - nx * bw, y: cy - fy * bl - ny * bw };
 
-      // White painted box outline
-      g.lineStyle(3, 0xffffff, 0.85);
-      g.beginPath();
-      corners.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
-      g.closePath();
-      g.strokePath();
+      // Helper: draw an L-shaped corner bracket at `corner`.
+      // `fa` = forward arm direction (+1 or -1 along forward axis)
+      // `na` = side arm direction (+1 or -1 along normal axis)
+      const drawCorner = (corner, fa, na) => {
+        // Forward arm (along track direction)
+        const fEnd = { x: corner.x - fx * armF * fa, y: corner.y - fy * armF * fa };
+        // Side arm (across track)
+        const nEnd = { x: corner.x - nx * armN * na, y: corner.y - ny * armN * na };
 
-      // Subtle white fill
-      g.fillStyle(0xffffff, 0.07);
-      g.fillPoints(corners, true);
+        g.lineStyle(lw, 0xffffff, 0.9);
+        g.beginPath();
+        g.moveTo(fEnd.x, fEnd.y);
+        g.lineTo(corner.x, corner.y);
+        g.lineTo(nEnd.x, nEnd.y);
+        g.strokePath();
+      };
 
-      // Box number label
+      //  TL corner: forward arm points back (+fa), side arm points right (+na)
+      drawCorner(TL, +1, +1);
+      //  TR corner: forward arm points back (+fa), side arm points left (-na)
+      drawCorner(TR, +1, -1);
+      //  BL corner: forward arm points fwd (-fa), side arm points right (+na)
+      drawCorner(BL, -1, +1);
+      //  BR corner: forward arm points fwd (-fa), side arm points left (-na)
+      drawCorner(BR, -1, -1);
+
+      // Slot number — subtle, centred in box
       if (scene) {
         scene.add.text(cx, cy, String(idx + 1), {
           fontFamily: 'Arial Black',
-          fontSize:   `${Math.round(this.halfWidth * 0.45)}px`,
+          fontSize:   `${Math.round(this.halfWidth * 0.4)}px`,
           color:      '#ffffff',
-        }).setAlpha(0.45).setOrigin(0.5).setDepth(2);
+        }).setAlpha(0.30).setOrigin(0.5).setDepth(2);
       }
     });
   }

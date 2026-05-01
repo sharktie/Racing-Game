@@ -1,8 +1,8 @@
 import Preload      from './client/scenes/Preload.js';
+import MenuScene    from './client/scenes/MenuScene.js';
 import Lobby        from './client/scenes/Lobby.js';
 import DrawingPhase from './client/scenes/DrawingPhase.js';
 import GameScene    from './client/scenes/GameScene.js';
-import MenuScene from './client/scenes/MenuScene.js';
 
 const game = new Phaser.Game({
   type:            Phaser.AUTO,

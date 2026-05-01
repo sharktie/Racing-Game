@@ -81,10 +81,10 @@ export default class GameScene extends Phaser.Scene {
       if (p.id === net.playerId) return; // skip self
       if (!this._ghosts.has(p.id)) {
         // New ghost
-        const ghost = new GhostCar(this, p.index);
+        const ghost = new GhostCar(this, p.index, p.name);
         this._ghosts.set(p.id, ghost);
-        // Tell main camera to ignore ghost sprites
-        this.cameras.main.ignore([ghost.sprite, ghost.label]);
+        // Tell HUD camera to ignore ghost sprites so they scroll with the world
+        this.hud.addToWorldCam([ghost.sprite, ghost.label]);
       }
       this._ghosts.get(p.id).applyState(p);
     });
@@ -103,14 +103,7 @@ export default class GameScene extends Phaser.Scene {
     // Always update ghost interpolation
     this._ghosts.forEach(g => g.update());
 
-    if (!this.driving) return;
-
-    const input   = this.inputSystem.get();
-    const onTrack = this.track.isOnTrack(this.car.x, this.car.y);
-
-    this.car.update(input, delta, onTrack);
-
-    // Broadcast position
+    // Broadcast position even during countdown so other players see us at grid
     this._broadcastAcc += delta;
     if (this._broadcastAcc >= BROADCAST_INTERVAL && net.socket && net.playerId) {
       this._broadcastAcc = 0;
@@ -120,6 +113,12 @@ export default class GameScene extends Phaser.Scene {
         lap: this.lapCount, checkpointPassed: this.checkpointPassed,
       });
     }
+
+    if (!this.driving) return;
+
+    const input   = this.inputSystem.get();
+    const onTrack = this.track.isOnTrack(this.car.x, this.car.y);
+    this.car.update(input, delta, onTrack);
 
     // Off-track reset
     if (!onTrack) {
