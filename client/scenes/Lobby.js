@@ -129,6 +129,26 @@ body {
 .btn-red  { background: var(--red);  color: #fff; }
 .btn-gold { background: var(--gold); color: #0d0d0f; }
 
+#draw-preview-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 50;
+  background: #0d0d0f;
+  flex-direction: column;
+  align-items: stretch;
+}
+#draw-preview-header {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 12px 20px;
+  background: #141416; border-bottom: 1px solid #252528;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px; letter-spacing: 3px; color: #f5c518;
+  text-transform: uppercase;
+}
+#draw-preview-header span { color: #5a5a62; font-size: 14px; letter-spacing: 1px; }
+#draw-preview-canvas-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 12px;
+}
 #draw-phase { display: none; flex-direction: column; height: 100vh; }
 #game-phase { position: fixed; inset: 0; display: block; }
 #game-phase canvas { display: block; }
@@ -186,6 +206,17 @@ function buildLobbyDOM() {
   inner.appendChild(waiting);
 
   document.body.appendChild(phase);
+
+  // Guest drawing preview overlay
+  const overlay = mk('div', { id: 'draw-preview-overlay' });
+  const header  = mk('div', { id: 'draw-preview-header' });
+  header.innerHTML = `✏ HOST IS DRAWING <span>— get ready to race!</span>`;
+  overlay.appendChild(header);
+  const wrap = mk('div', { id: 'draw-preview-canvas-wrap' });
+  const cvs  = mk('canvas', { id: 'draw-preview-canvas' });
+  wrap.appendChild(cvs);
+  overlay.appendChild(wrap);
+  document.body.appendChild(overlay);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -230,10 +261,16 @@ export default class Lobby extends Phaser.Scene {
 
     net.on('track_data', data => {
       this.registry.set('trackData', data);
+      document.getElementById('draw-preview-overlay').style.display = 'none';
       document.getElementById('lobby-phase').style.display = 'none';
       document.getElementById('game-phase').style.display  = 'block';
       this.scene.start('GameScene');
     });
+
+    // ── Guest drawing preview ──────────────────────────────────────────────
+    net.on('draw_stroke',  ({ points, blocked }) => this._onDrawStroke(points, blocked));
+    net.on('draw_preview', ({ points, blocked }) => this._onDrawStroke(points, blocked));
+    net.on('draw_clear',   ()                    => this._onDrawClear());
   }
 
   _backToMenu() {
@@ -305,5 +342,82 @@ export default class Lobby extends Phaser.Scene {
     document.getElementById('draw-phase').style.display  = 'flex';
     document.getElementById('game-phase').style.display  = 'none';
     this.scene.start('DrawingPhase');
+  }
+
+  // ── Guest live drawing preview ─────────────────────────────────────────
+
+  _onDrawStroke(points, blocked) {
+    if (net.isHost) return;  // host never shows preview (they draw on the real canvas)
+
+    const overlay = document.getElementById('draw-preview-overlay');
+    const cvs     = document.getElementById('draw-preview-canvas');
+    const wrap    = document.getElementById('draw-preview-canvas-wrap');
+
+    // Show the overlay and hide the lobby panel
+    overlay.style.display = 'flex';
+    document.getElementById('lobby-phase').style.display = 'none';
+
+    // Size the canvas to fill the wrap area, maintaining aspect ratio
+    const W = wrap.clientWidth  - 4;
+    const H = wrap.clientHeight - 4;
+    if (cvs.width !== W || cvs.height !== H) {
+      cvs.width  = W;
+      cvs.height = H;
+    }
+
+    const ctx = cvs.getContext('2d');
+
+    // Find bounding box of the points to fit them to canvas
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of points) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const pw = maxX - minX || 1;
+    const ph = maxY - minY || 1;
+    const scale = Math.min(W / pw, H / ph) * 0.85;
+    const ox = (W - pw * scale) / 2 - minX * scale;
+    const oy = (H - ph * scale) / 2 - minY * scale;
+
+    // Clear to dark background
+    ctx.fillStyle = '#0d0d0f';
+    ctx.fillRect(0, 0, W, H);
+
+    // Draw a subtle grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    for (let gx = 0; gx < W; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke(); }
+    for (let gy = 0; gy < H; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
+
+    if (points.length < 2) return;
+
+    ctx.lineWidth   = 3;
+    ctx.strokeStyle = blocked ? 'rgba(255,80,80,0.85)' : 'rgba(255,255,255,0.65)';
+    ctx.lineJoin    = 'round';
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x * scale + ox, points[0].y * scale + oy);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x * scale + ox, points[i].y * scale + oy);
+    }
+    ctx.stroke();
+
+    // Start dot
+    ctx.fillStyle = '#f5c518';
+    ctx.beginPath();
+    ctx.arc(points[0].x * scale + ox, points[0].y * scale + oy, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  _onDrawClear() {
+    if (net.isHost) return;
+    const overlay = document.getElementById('draw-preview-overlay');
+    const cvs     = document.getElementById('draw-preview-canvas');
+    overlay.style.display = 'none';
+    document.getElementById('lobby-phase').style.display = 'flex';
+    const ctx = cvs.getContext('2d');
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
   }
 }

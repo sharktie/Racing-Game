@@ -10,7 +10,7 @@
  *  - Catmull-Rom loop closure smooths the start/end seam automatically.
  */
 
-import { net } from '../systems/Network.js';
+import { net }  from '../systems/Network.js';
 import {
   injectStyles,
   drawBackground,
@@ -188,10 +188,20 @@ export default class DrawingPhase extends Phaser.Scene {
     // segment can be coloured independently next frame
     ctx.beginPath();
     ctx.moveTo(x, y);
+
+    // Broadcast live stroke to guests (throttled — every ~5 pts to save bandwidth)
+    if (net.isHost && pts.length % 5 === 0) {
+      net.sendDrawStroke(pts.slice(), this._blocked);
+    }
   }
 
   _onUp() {
     this._drawing = false;
+
+    // Send final stroke state to guests
+    if (net.isHost && this._rawPts.length > 0) {
+      net.sendDrawStroke(this._rawPts.slice(), this._blocked);
+    }
 
     if (this._blocked) {
       this._setStatus('⚠ Track has crossing lines — clear and try again', true);
@@ -269,6 +279,9 @@ export default class DrawingPhase extends Phaser.Scene {
     this.ctx.beginPath();
     this._setStatus('Click & drag to draw your track loop');
     this.statusEl.classList.remove('warn');
+
+    // Notify guests to clear their preview
+    if (net.isHost) net.sendDrawClear();
   }
 
   _race() {

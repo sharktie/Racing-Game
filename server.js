@@ -6,20 +6,25 @@
  * If host leaves, next player is promoted.
  *
  * Events (client → server):
- *   join_lobby  { name }    — join the global lobby
- *   track_ready { data }    — host sends finished track
- *   player_update { ... }   — position tick (~20Hz)
- *   lap_complete { lap, time }
+ *   join_lobby   { name }            — join the global lobby
+ *   track_ready  { data }            — host sends finished track
+ *   player_update { ... }            — position tick (~20Hz)
+ *   lap_complete  { lap, time }
+ *   draw_stroke  { points, blocked } — host streams live drawing
+ *   draw_clear   {}                  — host cleared the canvas
  *
  * Events (server → client):
- *   lobby_joined  { playerId, playerIndex, players, isHost, trackData }
- *   lobby_full    { message }
- *   player_joined { playerId, playerIndex, name }
- *   player_left   { playerId }
- *   host_changed  { hostId }
- *   track_data    { data }
+ *   lobby_joined   { playerId, playerIndex, players, isHost, trackData }
+ *   lobby_full     { message }
+ *   player_joined  { playerId, playerIndex, name }
+ *   player_left    { playerId }
+ *   host_changed   { hostId }
+ *   track_data     { data }
  *   players_update { players }
  *   lap_completed  { playerId, lap, time }
+ *   draw_stroke    { points, blocked }  — broadcast host drawing to guests
+ *   draw_clear     {}                   — broadcast canvas clear to guests
+ *   draw_preview   { points, blocked }  — sent to newly joined guests (current stroke)
  */
 
 const express    = require('express');
@@ -38,9 +43,10 @@ app.use(express.static(path.join(__dirname)));
 // ── Single global lobby ────────────────────────────────────────────────────
 
 const lobby = {
-  hostId:    null,
-  players:   new Map(),   // socketId → { id, index, name, x, y, angle, speed, lap }
-  trackData: null,
+  hostId:          null,
+  players:         new Map(),   // socketId → { id, index, name, x, y, angle, speed, lap }
+  trackData:       null,
+  currentStroke:   null,        // last draw_stroke payload — shown to late-joining guests
 };
 
 const MAX_PLAYERS = 4;
@@ -88,12 +94,18 @@ io.on('connection', (socket) => {
       playerId: socket.id, playerIndex: idx, name: safeName,
     });
 
+    // Send the host's current stroke to the new guest so they see it immediately
+    if (lobby.currentStroke) {
+      socket.emit('draw_preview', lobby.currentStroke);
+    }
+
     console.log(`  ${safeName} joined (P${idx + 1}) — ${lobby.players.size}/${MAX_PLAYERS}`);
   });
 
   socket.on('track_ready', ({ data }) => {
     if (lobby.hostId !== socket.id) return;
-    lobby.trackData = data;
+    lobby.trackData    = data;
+    lobby.currentStroke = null;   // drawing done — clear the preview buffer
     socket.to('lobby').emit('track_data', { data });
     console.log('  Track broadcast to lobby');
   });
@@ -111,6 +123,22 @@ io.on('connection', (socket) => {
     io.to('lobby').emit('lap_completed', { playerId: socket.id, lap, time });
   });
 
+  // ── Live drawing preview ──────────────────────────────────────────────────
+
+  socket.on('draw_stroke', ({ points, blocked }) => {
+    if (lobby.hostId !== socket.id) return;
+    lobby.currentStroke = { points, blocked };           // cache for late joiners
+    socket.to('lobby').emit('draw_stroke', { points, blocked });
+  });
+
+  socket.on('draw_clear', () => {
+    if (lobby.hostId !== socket.id) return;
+    lobby.currentStroke = null;
+    socket.to('lobby').emit('draw_clear');
+  });
+
+  // ── Disconnect ────────────────────────────────────────────────────────────
+
   socket.on('disconnect', () => {
     const player = lobby.players.get(socket.id);
     if (!player) return;
@@ -124,8 +152,9 @@ io.on('connection', (socket) => {
         io.to('lobby').emit('host_changed', { hostId: lobby.hostId });
         console.log(`  New host: ${lobby.players.get(lobby.hostId).name}`);
       } else {
-        lobby.hostId    = null;
-        lobby.trackData = null;
+        lobby.hostId        = null;
+        lobby.trackData     = null;
+        lobby.currentStroke = null;
         console.log('  Lobby empty — track cleared');
       }
     }

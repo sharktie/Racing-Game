@@ -8,6 +8,8 @@
  * net.sendTrack(data)
  * net.sendUpdate(state)
  * net.sendLapComplete(lap, time)
+ * net.sendDrawStroke(points, blocked)   ← NEW: stream drawing to guests
+ * net.sendDrawClear()                   ← NEW: clear guest preview
  * net.on(event, fn) / net.off(event, fn)
  */
 class Network {
@@ -38,18 +40,35 @@ class Network {
       this.players.delete(playerId);
       this._emit('player_left', playerId);
     });
-    this.socket.on('track_data',   ({ data }) => this._emit('track_data', data));
-    this.socket.on('lap_completed', (d)       => this._emit('lap_completed', d));
-    this.socket.on('host_changed',  ({ hostId }) => {
+    this.socket.on('track_data',    ({ data })     => this._emit('track_data', data));
+    this.socket.on('lap_completed', (d)            => this._emit('lap_completed', d));
+    this.socket.on('host_changed',  ({ hostId })   => {
       this.hostId = hostId;
       this.isHost = hostId === this.playerId;
       this._emit('host_changed', hostId);
     });
+
+    // ── Live drawing preview (NEW) ─────────────────────────────────────────
+    this.socket.on('draw_stroke', ({ points, blocked }) =>
+      this._emit('draw_stroke', { points, blocked }));
+    this.socket.on('draw_clear',  ()                    =>
+      this._emit('draw_clear', null));
+    this.socket.on('draw_preview', ({ points, blocked }) =>
+      this._emit('draw_preview', { points, blocked }));
   }
 
   joinLobby(name, cb) {
+    // FIX: Remove any stale one-time listeners from a previous attempt
+    // before registering new ones, preventing them from firing on the
+    // wrong response and causing crashes on retry.
+    this.socket.off('lobby_joined');
+    this.socket.off('lobby_full');
+
     this.socket.emit('join_lobby', { name });
     this.socket.once('lobby_joined', ({ playerId, playerIndex, isHost, players, trackData }) => {
+      // FIX: Also clean up the lobby_full listener since we succeeded
+      this.socket.off('lobby_full');
+
       this.playerId    = playerId;
       this.playerIndex = playerIndex;
       this.playerName  = name;
@@ -60,6 +79,8 @@ class Network {
       cb({ ok: true, trackData });
     });
     this.socket.once('lobby_full', ({ message }) => {
+      // FIX: Also clean up the lobby_joined listener since we failed
+      this.socket.off('lobby_joined');
       cb({ ok: false, message });
     });
   }
@@ -68,8 +89,27 @@ class Network {
   sendUpdate(state)           { this.socket.emit('player_update',  state);   }
   sendLapComplete(lap, time)  { this.socket.emit('lap_complete',  { lap, time }); }
 
+  // ── Live drawing preview (NEW) ─────────────────────────────────────────
+  sendDrawStroke(points, blocked) {
+    if (this.socket && this.isHost) {
+      this.socket.emit('draw_stroke', { points, blocked });
+    }
+  }
+  sendDrawClear() {
+    if (this.socket && this.isHost) {
+      this.socket.emit('draw_clear');
+    }
+  }
+
   on(event, fn)  { (this._listeners[event] ??= []).push(fn); }
-  off(event, fn) { this._listeners[event] = (this._listeners[event] || []).filter(f => f !== fn); }
+  off(event, fn) {
+    if (fn) {
+      this._listeners[event] = (this._listeners[event] || []).filter(f => f !== fn);
+    } else {
+      // off(event) with no fn clears all listeners for that event
+      this._listeners[event] = [];
+    }
+  }
   _emit(e, d)    { (this._listeners[e] || []).forEach(fn => fn(d)); }
 }
 
