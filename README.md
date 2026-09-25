@@ -2,6 +2,8 @@
 
 Draw a track with your mouse, then race it with up to three friends in the browser.
 
+Play it at https://race.sharktie.co.uk
+
 ## How to play
 
 1. Everyone opens the page, picks PLAY and enters a name. The first person in is the host.
