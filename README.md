@@ -1,52 +1,43 @@
-# Custom Track Racer — Multiplayer
+# Track Racer
 
-Real-time multiplayer top-down racing. Draw your own track and race friends online.
+Draw a track with your mouse, then race it with up to three friends in the browser.
 
-## How to Play
+## How to play
 
-1. **Host** clicks **Create Room** → gets a 4-letter room code
-2. **Guests** enter the code and click **Join**
-3. Host clicks **Draw Track**, draws a loop, hits **Generate Track** then **Race!**
-4. Everyone sees the same track and races live — ghost cars show all other players
+1. Everyone opens the page, picks PLAY and enters a name. The first person in is the host.
+2. The host picks DRAW TRACK and draws one closed loop. The other players watch it being drawn.
+3. The host hits RACE and everyone lines up on the grid. Three laps.
 
-Up to 4 players per room.
-
-## Running Locally
-
-```bash
-npm install
-node server.js
-# Open http://localhost:3000
-```
-
-## Deploy to Render
-
-1. Push this folder to a GitHub repo
-2. Go to [render.com](https://render.com) → **New Web Service**
-3. Connect your repo
-4. Set:
-   - **Build Command**: `npm install`
-   - **Start Command**: `node server.js`
-   - **Environment**: Node
-5. Deploy — Render gives you a public URL to share
-
-The `render.yaml` in this repo auto-configures all of the above if you use Render's Blueprint deploy.
+Pass through every blue checkpoint before crossing the start line or the lap doesn't count.
 
 ## Controls
 
-- **W / ↑** — Accelerate  
-- **S / ↓** — Brake / Reverse  
-- **A / ←** — Steer left  
-- **D / →** — Steer right  
+- W / Up: accelerate
+- S / Down: brake, reverse
+- A / Left, D / Right: steer
+- R: back to the last checkpoint
 
-## Architecture
+WASD can be rebound under CONTROLS. The arrow keys always work.
+
+## Running it
+
+```bash
+npm install
+npm start
+```
+
+Then open http://localhost:3000.
+
+`render.yaml` is set up for a Render web service if you want to put it online.
+
+## Files
 
 ```
-server.js          — Express + Socket.io server (rooms, relay)
-src/System/Network.js  — Socket.io client singleton
-src/Scenes/Lobby.js    — Room create/join UI
-src/Scenes/DrawingPhase.js — Track drawing (host only)
-src/Scenes/GameScene.js    — Race scene (all players)
-src/Entities/GhostCar.js   — Interpolated remote player renderer
-src/Track/CustomTrack.js   — Track geometry, 4 grid slots
+server.js                    lobby and message relay (Express + socket.io)
+public/index.html            page, styles, and the HTML lobby/drawing screens
+public/main.js               Phaser setup, network events that change screens
+public/client/scenes/        title, controls, lobby, drawing, race, results
+public/client/track/         track shape, checkpoints, starting grid
+public/client/entities/      your car and the other players' cars
+public/client/systems/       networking, input, HUD, drawing helpers
 ```

@@ -1,10 +1,7 @@
 services:
   - type: web
     name: custom-track-racer
-    env: node
+    runtime: node
     buildCommand: npm install
     startCommand: node server.js
-    envVars:
-      - key: PORT
-        value: 3000
     autoDeploy: true
